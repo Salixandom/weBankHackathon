@@ -107,7 +107,28 @@ class DealRunner:
         self._checkpointers: dict[str, InMemorySaver] = {}
         self.audit = EventfulAuditSink(self)
         self.anchor = MockAnchor()
-        self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
+        if settings.redis_url.startswith("fakeredis"):
+            import fakeredis
+
+            self.idempotency = fakeredis.FakeRedis(decode_responses=True)
+        else:
+            try:
+                import socket
+                from urllib.parse import urlparse
+
+                parsed = urlparse(settings.redis_url)
+                host = parsed.hostname or "localhost"
+                port = parsed.port or 6379
+                with socket.create_connection((host, port), timeout=0.1):
+                    pass
+                self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
+            except Exception:
+                if settings.env == "demo":
+                    import fakeredis
+
+                    self.idempotency = fakeredis.FakeRedis(decode_responses=True)
+                else:
+                    self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
         raw_keys = json.loads(settings.approval_public_keys_json)
         if not raw_keys and settings.env == "demo":
             from app.security.approval import DEMO_APPROVER_ID, DEMO_PUBLIC_KEY_B64

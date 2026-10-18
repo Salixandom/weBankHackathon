@@ -225,12 +225,11 @@ class ResumeBody(BaseModel):
 def _module_app() -> FastAPI | None:
     """ASGI entrypoint for `uvicorn app.main:app`. Building settings requires
     env (virtual key + signing key); tests build their own app instead."""
-    import os
-
-    if not os.environ.get("LITELLM_VIRTUAL_KEY"):
-        return None
     try:
-        return create_app()
+        settings = get_settings()
+        if not settings.litellm_virtual_key:
+            return None
+        return create_app(settings)
     except Exception:
         return None
 
